@@ -234,6 +234,16 @@ serve(async (req: Request) => {
           }
         }
       }
+      // New logic: Check for trigger in @MugtVpnshelperchannel to send broadcast post
+      const postText = channelPost.text || channelPost.caption || "";
+      if (channelUsername === "@MugtVpnshelperchannel" && postText.includes("newpostmugtvpns")) {
+        const post = (await kv.get(["broadcast_post"])).value;
+        if (post) {
+          for (const ch of allMonitored) {
+            await forwardMessage(ch, post.from_chat_id, post.message_id);
+          }
+        }
+      }
     }
     return new Response("OK", { status: 200 });
   }
