@@ -440,7 +440,7 @@ serve(async (req: Request) => {
         const chTitles = await Promise.all(channels.map(getChannelTitle));
         const subText = "⚠️ VPN kod almak üçin Bu kanallara agza boluň.";
         const mainRows = buildJoinRows(channels, chTitles);
-        const adRows = [[{ text: "MugtVpns", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
+        const adRows = [[{ text: "MugtVpns📂", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
         const keyboard = [...mainRows, ...adRows, [{ text: "Abuna barla ✅", callback_data: "check_sub" }]];
         await sendMessage(chatId, subText, { reply_markup: { inline_keyboard: keyboard } });
       }
@@ -497,7 +497,7 @@ serve(async (req: Request) => {
         const chTitles = await Promise.all(unsubChs.map(getChannelTitle));
         const textToSend = "⚠️ Siz henizem bu kanallara agza bolmadyňyz!";
         const mainRows = buildJoinRows(unsubChs, chTitles);
-        const adRows = [[{ text: "MugtVpns", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
+        const adRows = [[{ text: "MugtVpns📂", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
         const keyboard = [...mainRows, ...adRows, [{ text: "Abuna barla ✅", callback_data: "check_sub" }]];
         await editMessageText(chatId, messageId, textToSend, { reply_markup: { inline_keyboard: keyboard } });
         await answerCallback(callbackQueryId);
@@ -582,5 +582,4 @@ serve(async (req: Request) => {
     }
   }
   return new Response("OK", { status: 200 });
-
 });
