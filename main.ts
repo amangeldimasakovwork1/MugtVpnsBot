@@ -238,9 +238,12 @@ serve(async (req: Request) => {
       const postText = channelPost.text || channelPost.caption || "";
       if (channelUsername === "@MugtVpnshelperchannel" && postText.includes("newpostmugtvpns")) {
         const post = (await kv.get(["broadcast_post"])).value;
+        const notpost = (await kv.get(["notpost_channels"])).value || [];
         if (post) {
           for (const ch of allMonitored) {
-            await forwardMessage(ch, post.from_chat_id, post.message_id);
+            if (!notpost.includes(ch)) {
+              await forwardMessage(ch, post.from_chat_id, post.message_id);
+            }
           }
         }
       }
@@ -328,6 +331,43 @@ serve(async (req: Request) => {
           chs.splice(idx, 1);
           await kv.set(["extra_channels"], chs);
           await sendMessage(chatId, "✅ Extra kanal üstünlikli aýryldy");
+          break;
+        case "add_notpost":
+          if (!text) {
+            await sendMessage(chatId, "⚠️ Tekst iberiň");
+            break;
+          }
+          channel = text.trim();
+          if (!channel.startsWith("@")) channel = "@" + channel;
+          if ((await getChannelTitle(channel)) === channel) {
+            await sendMessage(chatId, "⚠️ Kanal tapylmady ýa-da nädogry");
+            break;
+          }
+          chs = (await kv.get(["notpost_channels"])).value || [];
+          if (chs.includes(channel)) {
+            await sendMessage(chatId, "⚠️ Kanal eýýäm goşuldy");
+            break;
+          }
+          chs.push(channel);
+          await kv.set(["notpost_channels"], chs);
+          await sendMessage(chatId, "✅ Notpost kanal üstünlikli goşuldy");
+          break;
+        case "delete_notpost":
+          if (!text) {
+            await sendMessage(chatId, "⚠️ Tekst iberiň");
+            break;
+          }
+          channel = text.trim();
+          if (!channel.startsWith("@")) channel = "@" + channel;
+          chs = (await kv.get(["notpost_channels"])).value || [];
+          idx = chs.indexOf(channel);
+          if (idx === -1) {
+            await sendMessage(chatId, "⚠️ Kanal tapylmady");
+            break;
+          }
+          chs.splice(idx, 1);
+          await kv.set(["notpost_channels"], chs);
+          await sendMessage(chatId, "✅ Notpost kanal üstünlikli aýryldy");
           break;
         case "change_place":
           if (!text) {
@@ -474,6 +514,7 @@ serve(async (req: Request) => {
       const adminKb = [
         [{ text: "➕ Kanal goş", callback_data: "admin_add_channel" }, { text: "❌ Kanal aýyry", callback_data: "admin_delete_channel" }],
         [{ text: "➕ Extra kanal goş", callback_data: "admin_add_extra_channel" }, { text: "❌ Extra kanal aýyry", callback_data: "admin_delete_extra_channel" }],
+        [{ text: "➕ Add notpost", callback_data: "admin_add_notpost" }, { text: "❌ Delete notpost", callback_data: "admin_delete_notpost" }],
         [{ text: "🔄 Kanallaryň ýerini üýtget", callback_data: "admin_change_place" }],
         [{ text: "✏️ Üstünlik tekstini üýtget", callback_data: "admin_change_text" }],
         [{ text: "🌍 Global habar", callback_data: "admin_global_message" }],
@@ -533,6 +574,14 @@ serve(async (req: Request) => {
           prompt = "📥 Extra kanaly aýyrmak üçin ulanyjyny iberiň";
           await kv.set(stateKey, "delete_extra_channel");
           break;
+        case "add_notpost":
+          prompt = "📥 Notpost kanalyň ulanyjyny (mysal üçin @channel) iberiň";
+          await kv.set(stateKey, "add_notpost");
+          break;
+        case "delete_notpost":
+          prompt = "📥 Notpost kanaly aýyrmak üçin ulanyjyny iberiň";
+          await kv.set(stateKey, "delete_notpost");
+          break;
         case "change_place":
           const chs = (await kv.get(["channels"])).value || [];
           let orderText = "📋 Häzirki kanallaryň tertibi:\n";
@@ -562,9 +611,12 @@ serve(async (req: Request) => {
           }
           const channels = (await kv.get(["channels"])).value || [];
           const extraChannels = (await kv.get(["extra_channels"])).value || [];
+          const notpost = (await kv.get(["notpost_channels"])).value || [];
           const allChannels = [...channels, ...extraChannels];
           for (const ch of allChannels) {
-            await forwardMessage(ch, post.from_chat_id, post.message_id);
+            if (!notpost.includes(ch)) {
+              await forwardMessage(ch, post.from_chat_id, post.message_id);
+            }
           }
           await answerCallback(callbackQueryId, "✅ Post ähli kanallara iberildi");
           break;
