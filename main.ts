@@ -211,7 +211,7 @@ serve(async (req: Request) => {
         }
         if (hasProtocol || hasFile) {
           const lowerText = postText.toLowerCase();
-          const forbidden = ["Taze bot hickim bilenok", "vip", "post", "vip post"];
+          const forbidden = ["✅Sen hem kody alyp ýetiş!✅✅", "Taze bot hickim bilenok", "vip", "post", "vip post"];
           const hasForbidden = forbidden.some(word => lowerText.includes(word));
           if (!hasForbidden) {
             const targetChannel = "@MugtVpns";
