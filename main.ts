@@ -201,7 +201,7 @@ serve(async (req: Request) => {
       const allMonitored = [...channels, ...extraChannels];
       if (allMonitored.includes(channelUsername)) {
         const postText = channelPost.text || channelPost.caption || "";
-        const protocols = ["vless://", "vmess://", "happ://"];
+        const protocols = ["ss://", "vless://", "vmess://", "happ://"];
         const hasProtocol = protocols.some(p => postText.includes(p));
         let hasFile = false;
         if (channelPost.document) {
