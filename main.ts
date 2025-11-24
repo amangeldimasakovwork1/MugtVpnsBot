@@ -222,18 +222,10 @@ serve(async (req: Request) => {
                 let count = (await kv.get(countKey)).value || 0;
                 count++;
                 await kv.set(countKey, count);
-                const newMessage = copyRes.result;
-                const newMsgId = newMessage.message_id;
                 if (count % 5 === 0) {
-                  const appendText = (await kv.get(["vip_reply_text", targetChannel])).value || "\n\n🤗 Хᴏᴛиᴛᴇ ᴛᴀᴋᴏй жᴇ ᴋᴧюч дᴇᴧиᴛᴇᴄь нᴀɯиʍ ᴋᴀнᴀᴧᴏʍ и нᴇ ɜᴀбыʙᴀйᴛᴇ ᴄᴛᴀʙиᴛь ᴧᴀйᴋи❤️‍🩹👍";
-                  if (newMessage.text) {
-                    const newText = (newMessage.text || "") + appendText;
-                    await editMessageText(targetChannel, newMsgId, newText, { parse_mode: newMessage.parse_mode });
-                  } else if (newMessage.caption) {
-                    const newCaption = (newMessage.caption || "") + appendText;
-                    await editMessageCaption(targetChannel, newMsgId, newCaption, { parse_mode: newMessage.parse_mode });
-                  } else {
-                    await sendMessage(targetChannel, appendText, { reply_to_message_id: newMsgId });
+                  const adPost = (await kv.get(["vip_ad_post", targetChannel])).value;
+                  if (adPost) {
+                    await forwardMessage(targetChannel, adPost.from_chat_id, adPost.message_id);
                   }
                 }
               }
@@ -512,18 +504,19 @@ serve(async (req: Request) => {
           chs.splice(idx, 1);
           await kv.set(["vip_channels"], chs);
           await kv.delete(["forward_count", channel]);
-          await kv.delete(["vip_reply_text", channel]);
+          await kv.delete(["vip_ad_post", channel]);
           await sendMessage(chatId, "✅ VipBot üstünlikli aýryldy");
           break;
-        case state.startsWith("change_vip_reply:"):
-          if (!text) {
-            await sendMessage(chatId, "⚠️ Tekst iberiň");
-            break;
+        case state.startsWith("change_vip_ad_post:"):
+          channel = state.substring(19);
+          let fromChatIdPost = chatId;
+          let msgIdPost = message.message_id;
+          if (message.forward_origin && message.forward_origin.type === "channel") {
+            fromChatIdPost = message.forward_origin.chat.id;
+            msgIdPost = message.forward_origin.message_id;
           }
-          channel = state.substring(17);
-          const newText = text.trim();
-          await kv.set(["vip_reply_text", channel], newText);
-          await sendMessage(chatId, "✅ Reply text üstünlikli üýtgedildi:\n\n" + newText);
+          await kv.set(["vip_ad_post", channel], { from_chat_id: fromChatIdPost, message_id: msgIdPost });
+          await sendMessage(chatId, "✅ Ad post üstünlikli üýtgedildi");
           break;
       }
       await kv.delete(stateKey);
@@ -724,19 +717,19 @@ serve(async (req: Request) => {
       await answerCallback(callbackQueryId);
     } else if (data.startsWith("vip_select:")) {
       const channel = data.substring(11);
-      const currentText = (await kv.get(["vip_reply_text", channel])).value || "🤗 Хᴏᴛиᴛᴇ ᴛᴀᴋᴏй жᴇ ᴋᴧюч дᴇᴧиᴛᴇᴄь нᴀɯиʍ ᴋᴀнᴀᴧᴏʍ и нᴇ ɜᴀбыʙᴀйᴛᴇ ᴄᴛᴀʙиᴛь ᴧᴀйᴋи❤️‍🩹👍";
-      const settingsText = `Settings for ${await getChannelTitle(channel)}:\n\nCurrent reply text:\n${currentText}`;
+      const adPostSet = !!(await kv.get(["vip_ad_post", channel])).value;
+      const settingsText = `Settings for ${await getChannelTitle(channel)}:\n\nAd post is ${adPostSet ? "set" : "not set"}.`;
       const kb = [
-        [{ text: "Change reply text", callback_data: `vip_change:${channel}` }],
+        [{ text: "Change ad post", callback_data: `vip_change_post:${channel}` }],
         [{ text: "Back to VipBot Settings", callback_data: "admin_vipbot_settings" }],
         [{ text: "Back to admin panel", callback_data: "admin_panel" }]
       ];
       await editMessageText(chatId, messageId, settingsText, { reply_markup: { inline_keyboard: kb } });
       await answerCallback(callbackQueryId);
-    } else if (data.startsWith("vip_change:")) {
-      const channel = data.substring(11);
-      await editMessageText(chatId, messageId, `Send the new reply text for ${channel}:`);
-      await kv.set(["state", userId], `change_vip_reply:${channel}`);
+    } else if (data.startsWith("vip_change_post:")) {
+      const channel = data.substring(16);
+      await editMessageText(chatId, messageId, `Send the new ad post for ${channel} (forward from channel to hide sender name):`);
+      await kv.set(["state", userId], `change_vip_ad_post:${channel}`);
       await answerCallback(callbackQueryId);
     } else if (data === "admin_panel") {
       const stats = await getStats();
