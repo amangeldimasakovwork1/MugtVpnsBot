@@ -225,7 +225,7 @@ serve(async (req: Request) => {
                 if (count % 5 === 0) {
                   const adPost = (await kv.get(["vip_ad_post", targetChannel])).value;
                   if (adPost) {
-                    await forwardMessage(targetChannel, adPost.from_chat_id, adPost.message_id);
+                    await copyMessage(targetChannel, adPost.from_chat_id, adPost.message_id);
                   }
                 }
               }
