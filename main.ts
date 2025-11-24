@@ -733,7 +733,7 @@ serve(async (req: Request) => {
       await editMessageText(chatId, messageId, settingsText, { reply_markup: { inline_keyboard: kb } });
       await answerCallback(callbackQueryId);
     } else if (data.startsWith("vip_change:")) {
-      const channel = data.substring(10);
+      const channel = data.substring(11);
       await editMessageText(chatId, messageId, `Send the new reply text for ${channel}:`);
       await kv.set(["state", userId], `change_vip_reply:${channel}`);
       await answerCallback(callbackQueryId);
