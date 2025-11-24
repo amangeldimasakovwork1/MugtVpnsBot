@@ -521,8 +521,9 @@ serve(async (req: Request) => {
             break;
           }
           channel = state.substring(17);
-          await kv.set(["vip_reply_text", channel], text.trim());
-          await sendMessage(chatId, "✅ Reply text üstünlikli üýtgedildi");
+          const newText = text.trim();
+          await kv.set(["vip_reply_text", channel], newText);
+          await sendMessage(chatId, "✅ Reply text üstünlikli üýtgedildi:\n\n" + newText);
           break;
       }
       await kv.delete(stateKey);
