@@ -206,7 +206,7 @@ serve(async (req: Request) => {
         let hasFile = false;
         if (channelPost.document) {
           const fileName = channelPost.document.file_name || "";
-          const extensions = [".npvt", ".dark", ".hc"];
+          const extensions = [".npvt", ".dark", ".hc", ".ovpn"];
           hasFile = extensions.some(ext => fileName.toLowerCase().endsWith(ext));
         }
         if (hasProtocol || hasFile) {
