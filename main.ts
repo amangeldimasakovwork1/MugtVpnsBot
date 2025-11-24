@@ -211,27 +211,30 @@ serve(async (req: Request) => {
         }
         if (hasProtocol || hasFile) {
           const lowerText = postText.toLowerCase();
-          const forbidden = ["ss://YWVzLTI1Ni1nY206b2pxUkkyV1ZVL3JxYjBoQ04wNWRJY04yY1JGb", "Yokarky kot", "Yokarky kot yaryp dur like gelmese oçer", "1 sagat dursun", "kod goýuldy", "bot", "bota", "📱𝗗𝗢𝗩𝗔𝗠𝗬 𝗕𝗢𝗧𝗗𝗔 𝗔𝗟𝗬𝗣 𝗬𝗘𝗧𝗜𝗦𝗜𝗡👇", "✅Sen hem kody alyp ýetiş!✅✅", "Taze bot hickim bilenok", "vip", "post", "vip post"];
+          const forbidden = ["Yokarky kot", "Yokarky kot yaryp dur like gelmese oçer", "1 sagat dursun", "kod goýuldy", "bot", "bota", "📱𝗗𝗢𝗩𝗔𝗠𝗬 𝗕𝗢𝗧𝗗𝗔 𝗔𝗟𝗬𝗣 𝗬𝗘𝗧𝗜𝗦𝗜𝗡👇", "✅Sen hem kody alyp ýetiş!✅✅", "Taze bot hickim bilenok", "vip", "post", "vip post"];
           const hasForbidden = forbidden.some(word => lowerText.includes(word));
           if (!hasForbidden) {
-            const targetChannel = "@MugtVpns";
-            const copyRes = await copyMessage(targetChannel, channelPost.chat.id, channelPost.message_id);
-            if (copyRes.ok) {
-              let count = (await kv.get(["forward_count"])).value || 0;
-              count++;
-              await kv.set(["forward_count"], count);
-              const newMessage = copyRes.result;
-              const newMsgId = newMessage.message_id;
-              if (count % 5 === 0) {
-                const appendText = "\n\n🤗 Хᴏᴛиᴛᴇ ᴛᴀᴋᴏй жᴇ ᴋᴧюч дᴇᴧиᴛᴇᴄь нᴀɯиʍ ᴋᴀнᴀᴧᴏʍ и нᴇ ɜᴀбыʙᴀйᴛᴇ ᴄᴛᴀʙиᴛь ᴧᴀйᴋи❤️‍🩹👍";
-                if (newMessage.text) {
-                  const newText = (newMessage.text || "") + appendText;
-                  await editMessageText(targetChannel, newMsgId, newText, { parse_mode: newMessage.parse_mode });
-                } else if (newMessage.caption) {
-                  const newCaption = (newMessage.caption || "") + appendText;
-                  await editMessageCaption(targetChannel, newMsgId, newCaption, { parse_mode: newMessage.parse_mode });
-                } else {
-                  await sendMessage(targetChannel, appendText, { reply_to_message_id: newMsgId });
+            const vipChannels = (await kv.get(["vip_channels"])).value || [];
+            for (const targetChannel of vipChannels) {
+              const copyRes = await copyMessage(targetChannel, channelPost.chat.id, channelPost.message_id);
+              if (copyRes.ok) {
+                const countKey = ["forward_count", targetChannel];
+                let count = (await kv.get(countKey)).value || 0;
+                count++;
+                await kv.set(countKey, count);
+                const newMessage = copyRes.result;
+                const newMsgId = newMessage.message_id;
+                if (count % 5 === 0) {
+                  const appendText = (await kv.get(["vip_reply_text", targetChannel])).value || "\n\n🤗 Хᴏᴛиᴛᴇ ᴛᴀᴋᴏй жᴇ ᴋᴧюч дᴇᴧиᴛᴇᴄь нᴀɯиʍ ᴋᴀнᴀᴧᴏʍ и нᴇ ɜᴀбыʙᴀйᴛᴇ ᴄᴛᴀʙиᴛь ᴧᴀйᴋи❤️‍🩹👍";
+                  if (newMessage.text) {
+                    const newText = (newMessage.text || "") + appendText;
+                    await editMessageText(targetChannel, newMsgId, newText, { parse_mode: newMessage.parse_mode });
+                  } else if (newMessage.caption) {
+                    const newCaption = (newMessage.caption || "") + appendText;
+                    await editMessageCaption(targetChannel, newMsgId, newCaption, { parse_mode: newMessage.parse_mode });
+                  } else {
+                    await sendMessage(targetChannel, appendText, { reply_to_message_id: newMsgId });
+                  }
                 }
               }
             }
@@ -261,8 +264,8 @@ serve(async (req: Request) => {
     if (state) {
       let channel: string, idx: number, pos: number;
       let chs: string[];
-      switch (state) {
-        case "add_channel":
+      switch (true) {
+        case state === "add_channel":
           if (!text) {
             await sendMessage(chatId, "⚠️ Tekst iberiň");
             break;
@@ -282,7 +285,7 @@ serve(async (req: Request) => {
           await kv.set(["channels"], chs);
           await sendMessage(chatId, "✅ Kanal üstünlikli goşuldy");
           break;
-        case "delete_channel":
+        case state === "delete_channel":
           if (!text) {
             await sendMessage(chatId, "⚠️ Tekst iberiň");
             break;
@@ -299,7 +302,7 @@ serve(async (req: Request) => {
           await kv.set(["channels"], chs);
           await sendMessage(chatId, "✅ Kanal üstünlikli aýryldy");
           break;
-        case "add_extra_channel":
+        case state === "add_extra_channel":
           if (!text) {
             await sendMessage(chatId, "⚠️ Tekst iberiň");
             break;
@@ -319,7 +322,7 @@ serve(async (req: Request) => {
           await kv.set(["extra_channels"], chs);
           await sendMessage(chatId, "✅ Extra kanal üstünlikli goşuldy");
           break;
-        case "delete_extra_channel":
+        case state === "delete_extra_channel":
           if (!text) {
             await sendMessage(chatId, "⚠️ Tekst iberiň");
             break;
@@ -336,7 +339,7 @@ serve(async (req: Request) => {
           await kv.set(["extra_channels"], chs);
           await sendMessage(chatId, "✅ Extra kanal üstünlikli aýryldy");
           break;
-        case "add_notpost":
+        case state === "add_notpost":
           if (!text) {
             await sendMessage(chatId, "⚠️ Tekst iberiň");
             break;
@@ -356,7 +359,7 @@ serve(async (req: Request) => {
           await kv.set(["notpost_channels"], chs);
           await sendMessage(chatId, "✅ Notpost kanal üstünlikli goşuldy");
           break;
-        case "delete_notpost":
+        case state === "delete_notpost":
           if (!text) {
             await sendMessage(chatId, "⚠️ Tekst iberiň");
             break;
@@ -373,7 +376,7 @@ serve(async (req: Request) => {
           await kv.set(["notpost_channels"], chs);
           await sendMessage(chatId, "✅ Notpost kanal üstünlikli aýryldy");
           break;
-        case "change_place":
+        case state === "change_place":
           if (!text) {
             await sendMessage(chatId, "⚠️ Tekst iberiň");
             break;
@@ -402,7 +405,7 @@ serve(async (req: Request) => {
           await kv.set(["channels"], chs);
           await sendMessage(chatId, "✅ Orun üstünlikli üýtgedildi");
           break;
-        case "change_text":
+        case state === "change_text":
           let fromChatId = chatId;
           let msgId = message.message_id;
           if (message.forward_origin && message.forward_origin.type === "channel") {
@@ -412,11 +415,11 @@ serve(async (req: Request) => {
           await kv.set(["success_message"], { from_chat_id: fromChatId, message_id: msgId });
           await sendMessage(chatId, "✅ Üstünlik habary üýtgedildi");
           break;
-        case "change_post":
+        case state === "change_post":
           await kv.set(["broadcast_post"], { from_chat_id: chatId, message_id: message.message_id });
           await sendMessage(chatId, "✅ Post üstünlikli üýtgedildi");
           break;
-        case "global_message":
+        case state === "global_message":
           let globalFromChatId = chatId;
           let globalMsgId = message.message_id;
           if (message.forward_origin && message.forward_origin.type === "channel") {
@@ -432,7 +435,7 @@ serve(async (req: Request) => {
           }
           await sendMessage(chatId, `✅ Habar ${sentCount} ulanyjylara iberildi`);
           break;
-        case "add_admin":
+        case state === "add_admin":
           if (!text) {
             await sendMessage(chatId, "⚠️ Tekst iberiň");
             break;
@@ -452,7 +455,7 @@ serve(async (req: Request) => {
           await kv.set(["admins"], admins);
           await sendMessage(chatId, "✅ Admin goşuldy");
           break;
-        case "delete_admin":
+        case state === "delete_admin":
           if (!text) {
             await sendMessage(chatId, "⚠️ Tekst iberiň");
             break;
@@ -472,6 +475,54 @@ serve(async (req: Request) => {
           admins.splice(idx, 1);
           await kv.set(["admins"], admins);
           await sendMessage(chatId, "✅ Admin aýryldy");
+          break;
+        case state === "add_vipbot":
+          if (!text) {
+            await sendMessage(chatId, "⚠️ Tekst iberiň");
+            break;
+          }
+          channel = text.trim();
+          if (!channel.startsWith("@")) channel = "@" + channel;
+          if ((await getChannelTitle(channel)) === channel) {
+            await sendMessage(chatId, "⚠️ Kanal tapylmady ýa-da nädogry");
+            break;
+          }
+          chs = (await kv.get(["vip_channels"])).value || [];
+          if (chs.includes(channel)) {
+            await sendMessage(chatId, "⚠️ VipBot eýýäm goşuldy");
+            break;
+          }
+          chs.push(channel);
+          await kv.set(["vip_channels"], chs);
+          await sendMessage(chatId, "✅ VipBot üstünlikli goşuldy");
+          break;
+        case state === "delete_vipbot":
+          if (!text) {
+            await sendMessage(chatId, "⚠️ Tekst iberiň");
+            break;
+          }
+          channel = text.trim();
+          if (!channel.startsWith("@")) channel = "@" + channel;
+          chs = (await kv.get(["vip_channels"])).value || [];
+          idx = chs.indexOf(channel);
+          if (idx === -1) {
+            await sendMessage(chatId, "⚠️ VipBot tapylmady");
+            break;
+          }
+          chs.splice(idx, 1);
+          await kv.set(["vip_channels"], chs);
+          await kv.delete(["forward_count", channel]);
+          await kv.delete(["vip_reply_text", channel]);
+          await sendMessage(chatId, "✅ VipBot üstünlikli aýryldy");
+          break;
+        case state.startsWith("change_vip_reply:"):
+          if (!text) {
+            await sendMessage(chatId, "⚠️ Tekst iberiň");
+            break;
+          }
+          channel = state.substring(17);
+          await kv.set(["vip_reply_text", channel], text.trim());
+          await sendMessage(chatId, "✅ Reply text üstünlikli üýtgedildi");
           break;
       }
       await kv.delete(stateKey);
@@ -523,6 +574,8 @@ serve(async (req: Request) => {
         [{ text: "✏️ Üstünlik tekstini üýtget", callback_data: "admin_change_text" }],
         [{ text: "🌍 Global habar", callback_data: "admin_global_message" }],
         [{ text: "✏️ Ýaýratmak postyny üýtget", callback_data: "admin_change_post" }, { text: "📤 Post iber", callback_data: "admin_send_post" }],
+        [{ text: "➕ Add VipBot", callback_data: "admin_add_vipbot" }, { text: "❌ Delete VipBot", callback_data: "admin_delete_vipbot" }],
+        [{ text: "⚙️ VipBot Settings", callback_data: "admin_vipbot_settings" }],
         [{ text: "➕ Admin goş", callback_data: "admin_add_admin" }, { text: "❌ Admin aýyry", callback_data: "admin_delete_admin" }],
       ];
       await sendMessage(chatId, "Admin paneli", { reply_markup: { inline_keyboard: adminKb } });
@@ -624,6 +677,29 @@ serve(async (req: Request) => {
           }
           await answerCallback(callbackQueryId, "✅ Post ähli kanallara iberildi");
           break;
+        case "add_vipbot":
+          prompt = "📥 VipBot kanalyň ulanyjyny (mysal üçin @MugtVpns) iberiň";
+          await kv.set(stateKey, "add_vipbot");
+          break;
+        case "delete_vipbot":
+          prompt = "📥 VipBot aýyrmak üçin ulanyjyny iberiň";
+          await kv.set(stateKey, "delete_vipbot");
+          break;
+        case "vipbot_settings":
+          const vipChs = (await kv.get(["vip_channels"])).value || [];
+          if (vipChs.length === 0) {
+            await editMessageText(chatId, messageId, "⚠️ No VipBots added yet.");
+          } else {
+            const titles = await Promise.all(vipChs.map(getChannelTitle));
+            const rows = [];
+            for (let i = 0; i < vipChs.length; i++) {
+              rows.push([{ text: titles[i], callback_data: `vip_select:${vipChs[i]}` }]);
+            }
+            rows.push([{ text: "Back to admin panel", callback_data: "admin_panel" }]);
+            await editMessageText(chatId, messageId, "Select VipBot channel:", { reply_markup: { inline_keyboard: rows } });
+          }
+          await answerCallback(callbackQueryId);
+          return new Response("OK", { status: 200 });
         case "add_admin":
           if (username !== "@Masakoff") {
             await answerCallback(callbackQueryId, "Diňe @Masakoff adminleri goşup bilýär");
@@ -644,6 +720,44 @@ serve(async (req: Request) => {
       if (prompt) {
         await editMessageText(chatId, messageId, prompt);
       }
+      await answerCallback(callbackQueryId);
+    } else if (data.startsWith("vip_select:")) {
+      const channel = data.substring(11);
+      const currentText = (await kv.get(["vip_reply_text", channel])).value || "🤗 Хᴏᴛиᴛᴇ ᴛᴀᴋᴏй жᴇ ᴋᴧюч дᴇᴧиᴛᴇᴄь нᴀɯиʍ ᴋᴀнᴀᴧᴏʍ и нᴇ ɜᴀбыʙᴀйᴛᴇ ᴄᴛᴀʙиᴛь ᴧᴀйᴋи❤️‍🩹👍";
+      const settingsText = `Settings for ${await getChannelTitle(channel)}:\n\nCurrent reply text:\n${currentText}`;
+      const kb = [
+        [{ text: "Change reply text", callback_data: `vip_change:${channel}` }],
+        [{ text: "Back to VipBot Settings", callback_data: "admin_vipbot_settings" }],
+        [{ text: "Back to admin panel", callback_data: "admin_panel" }]
+      ];
+      await editMessageText(chatId, messageId, settingsText, { reply_markup: { inline_keyboard: kb } });
+      await answerCallback(callbackQueryId);
+    } else if (data.startsWith("vip_change:")) {
+      const channel = data.substring(10);
+      await editMessageText(chatId, messageId, `Send the new reply text for ${channel}:`);
+      await kv.set(["state", userId], `change_vip_reply:${channel}`);
+      await answerCallback(callbackQueryId);
+    } else if (data === "admin_panel") {
+      const stats = await getStats();
+      let statText = "📊 Bot statistikasy:\n";
+      statText += `1. Jemgyýetdäki ulanyjylar: ${stats.total}\n`;
+      statText += `2. Soňky 24 sagatda hasaba alnan ulanyjylar: ${stats.reg24}\n`;
+      statText += `3. Soňky 24 sagatda işjeň ulanyjylar: ${stats.act24}\n`;
+      statText += `4. Kanallaryň sany: ${stats.channels}\n`;
+      statText += `5. Adminleriň sany: ${stats.admins}\n\nAdmin paneli`;
+      const adminKb = [
+        [{ text: "➕ Kanal goş", callback_data: "admin_add_channel" }, { text: "❌ Kanal aýyry", callback_data: "admin_delete_channel" }],
+        [{ text: "➕ Extra kanal goş", callback_data: "admin_add_extra_channel" }, { text: "❌ Extra kanal aýyry", callback_data: "admin_delete_extra_channel" }],
+        [{ text: "➕ Add notpost", callback_data: "admin_add_notpost" }, { text: "❌ Delete notpost", callback_data: "admin_delete_notpost" }],
+        [{ text: "🔄 Kanallaryň ýerini üýtget", callback_data: "admin_change_place" }],
+        [{ text: "✏️ Üstünlik tekstini üýtget", callback_data: "admin_change_text" }],
+        [{ text: "🌍 Global habar", callback_data: "admin_global_message" }],
+        [{ text: "✏️ Ýaýratmak postyny üýtget", callback_data: "admin_change_post" }, { text: "📤 Post iber", callback_data: "admin_send_post" }],
+        [{ text: "➕ Add VipBot", callback_data: "admin_add_vipbot" }, { text: "❌ Delete VipBot", callback_data: "admin_delete_vipbot" }],
+        [{ text: "⚙️ VipBot Settings", callback_data: "admin_vipbot_settings" }],
+        [{ text: "➕ Admin goş", callback_data: "admin_add_admin" }, { text: "❌ Admin aýyry", callback_data: "admin_delete_admin" }],
+      ];
+      await editMessageText(chatId, messageId, statText, { reply_markup: { inline_keyboard: adminKb } });
       await answerCallback(callbackQueryId);
     }
   }
