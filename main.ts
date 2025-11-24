@@ -64,11 +64,11 @@ serve(async (req: Request) => {
       body: JSON.stringify({ chat_id: toChatId, from_chat_id: fromChatId, message_id: msgId }),
     });
   }
-  async function copyMessage(toChatId: number | string, fromChatId: number | string, msgId: number) {
+  async function copyMessage(toChatId: number | string, fromChatId: number | string, msgId: number, opts = {}) {
     const res = await fetch(`${TELEGRAM_API}/copyMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: toChatId, from_chat_id: fromChatId, message_id: msgId }),
+      body: JSON.stringify({ chat_id: toChatId, from_chat_id: fromChatId, message_id: msgId, ...opts }),
     });
     return await res.json();
   }
@@ -225,15 +225,12 @@ serve(async (req: Request) => {
                 const newMessage = copyRes.result;
                 const newMsgId = newMessage.message_id;
                 if (count % 5 === 0) {
-                  const appendText = (await kv.get(["vip_reply_text", targetChannel])).value || "\n\n🤗 Хᴏᴛиᴛᴇ ᴛᴀᴋᴏй жᴇ ᴋᴧюч дᴇᴧиᴛᴇᴄь нᴀɯиʍ ᴋᴀнᴀᴧᴏʍ и нᴇ ɜᴀбыʙᴀйᴛᴇ ᴄᴛᴀʙиᴛь ᴧᴀйᴋи❤️‍🩹👍";
-                  if (newMessage.text) {
-                    const newText = (newMessage.text || "") + appendText;
-                    await editMessageText(targetChannel, newMsgId, newText, { parse_mode: newMessage.parse_mode });
-                  } else if (newMessage.caption) {
-                    const newCaption = (newMessage.caption || "") + appendText;
-                    await editMessageCaption(targetChannel, newMsgId, newCaption, { parse_mode: newMessage.parse_mode });
+                  const replyMsg = (await kv.get(["vip_reply_message", targetChannel])).value;
+                  const defaultReplyText = "🤗 Хᴏᴛиᴛᴇ ᴛᴀᴋᴏй жᴇ ᴋᴧюч дᴇᴧиᴛᴇᴄь нᴀɯиʍ ᴋᴀнᴀᴧᴏʍ и нᴇ ɜᴀбыʙᴀйᴛᴇ ᴄᴛᴀʙиᴛь ᴧᴀйᴋи❤️‍🩹👍";
+                  if (replyMsg) {
+                    await copyMessage(targetChannel, replyMsg.from_chat_id, replyMsg.message_id, { reply_to_message_id: newMsgId });
                   } else {
-                    await sendMessage(targetChannel, appendText, { reply_to_message_id: newMsgId });
+                    await sendMessage(targetChannel, defaultReplyText, { reply_to_message_id: newMsgId });
                   }
                 }
               }
@@ -512,18 +509,19 @@ serve(async (req: Request) => {
           chs.splice(idx, 1);
           await kv.set(["vip_channels"], chs);
           await kv.delete(["forward_count", channel]);
-          await kv.delete(["vip_reply_text", channel]);
+          await kv.delete(["vip_reply_message", channel]);
           await sendMessage(chatId, "✅ VipBot üstünlikli aýryldy");
           break;
         case state.startsWith("change_vip_reply:"):
-          if (!text) {
-            await sendMessage(chatId, "⚠️ Tekst iberiň");
-            break;
-          }
           channel = state.substring(17);
-          const newText = text.trim();
-          await kv.set(["vip_reply_text", channel], newText);
-          await sendMessage(chatId, "✅ Reply text üstünlikli üýtgedildi:\n\n" + newText);
+          let fromChatId = chatId;
+          let msgId = message.message_id;
+          if (message.forward_origin && message.forward_origin.type === "channel") {
+            fromChatId = message.forward_origin.chat.id;
+            msgId = message.forward_origin.message_id;
+          }
+          await kv.set(["vip_reply_message", channel], { from_chat_id: fromChatId, message_id: msgId });
+          await sendMessage(chatId, "✅ Reply message üstünlikli üýtgedildi");
           break;
       }
       await kv.delete(stateKey);
@@ -724,10 +722,10 @@ serve(async (req: Request) => {
       await answerCallback(callbackQueryId);
     } else if (data.startsWith("vip_select:")) {
       const channel = data.substring(11);
-      const currentText = (await kv.get(["vip_reply_text", channel])).value || "🤗 Хᴏᴛиᴛᴇ ᴛᴀᴋᴏй жᴇ ᴋᴧюч дᴇᴧиᴛᴇᴄь нᴀɯиʍ ᴋᴀнᴀᴧᴏʍ и нᴇ ɜᴀбыʙᴀйᴛᴇ ᴄᴛᴀʙиᴛь ᴧᴀйᴋи❤️‍🩹👍";
-      const settingsText = `Settings for ${await getChannelTitle(channel)}:\n\nCurrent reply text:\n${currentText}`;
+      const replyMsg = (await kv.get(["vip_reply_message", channel])).value;
+      const settingsText = `Settings for ${await getChannelTitle(channel)}:\n\nCurrent reply message: ${replyMsg ? "Set" : "Not set (using default)"}`;
       const kb = [
-        [{ text: "Change reply text", callback_data: `vip_change:${channel}` }],
+        [{ text: "Change reply message", callback_data: `vip_change:${channel}` }],
         [{ text: "Back to VipBot Settings", callback_data: "admin_vipbot_settings" }],
         [{ text: "Back to admin panel", callback_data: "admin_panel" }]
       ];
@@ -735,7 +733,7 @@ serve(async (req: Request) => {
       await answerCallback(callbackQueryId);
     } else if (data.startsWith("vip_change:")) {
       const channel = data.substring(11);
-      await editMessageText(chatId, messageId, `Send the new reply text for ${channel}:`);
+      await editMessageText(chatId, messageId, `Send or forward the new reply message (text, photo, video, etc.) for ${channel}:`);
       await kv.set(["state", userId], `change_vip_reply:${channel}`);
       await answerCallback(callbackQueryId);
     } else if (data === "admin_panel") {
