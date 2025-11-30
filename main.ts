@@ -211,7 +211,7 @@ serve(async (req: Request) => {
         }
         if (hasProtocol || hasFile) {
           const lowerText = postText.toLowerCase();
-          const forbidden = ["Yokarky kot", "Yokarky kot yaryp dur like gelmese oçer", "1 sagat dursun", "kod goýuldy", "bot", "bota", "📱𝗗𝗢𝗩𝗔𝗠𝗬 𝗕𝗢𝗧𝗗𝗔 𝗔𝗟𝗬𝗣 𝗬𝗘𝗧𝗜𝗦𝗜𝗡👇", "✅Sen hem kody alyp ýetiş!✅✅", "Taze bot hickim bilenok", "vip", "post", "vip post"];
+          const forbidden = ["𝐲́𝐨𝐤𝐚𝐫𝐤𝐲", "Yokarky kot", "Yokarky kot yaryp dur like gelmese oçer", "1 sagat dursun", "kod goýuldy", "bot", "bota", "📱𝗗𝗢𝗩𝗔𝗠𝗬 𝗕𝗢𝗧𝗗𝗔 𝗔𝗟𝗬𝗣 𝗬𝗘𝗧𝗜𝗦𝗜𝗡👇", "✅Sen hem kody alyp ýetiş!✅✅", "Taze bot hickim bilenok", "vip", "post", "vip post"];
           const hasForbidden = forbidden.some(word => lowerText.includes(word));
           if (!hasForbidden) {
             const vipChannels = (await kv.get(["vip_channels"])).value || [];
