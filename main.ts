@@ -230,10 +230,16 @@ serve(async (req: Request) => {
                 }
                 const originalContent = appendTo === 'text' ? channelPost.text : channelPost.caption || '';
                 const newContent = originalContent + (originalContent ? '\n' : '') + fromIndicator;
+                let originalEntities = [];
                 if (appendTo === 'text') {
-                  await editMessageText(targetChannel, newMessageId, newContent);
+                  originalEntities = channelPost.entities || [];
                 } else {
-                  await editMessageCaption(targetChannel, newMessageId, newContent);
+                  originalEntities = channelPost.caption_entities || [];
+                }
+                if (appendTo === 'text') {
+                  await editMessageText(targetChannel, newMessageId, newContent, { entities: originalEntities });
+                } else {
+                  await editMessageCaption(targetChannel, newMessageId, newContent, { caption_entities: originalEntities });
                 }
                 const countKey = ["forward_count", targetChannel];
                 let count = (await kv.get(countKey)).value || 0;
