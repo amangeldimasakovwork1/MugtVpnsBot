@@ -219,7 +219,7 @@ serve(async (req: Request) => {
               const copyRes = await copyMessage(targetChannel, channelPost.chat.id, channelPost.message_id);
               if (copyRes.ok) {
                 const newMessageId = copyRes.result.message_id;
-                const fromIndicator = `📌${channelUsername}`;
+                const fromIndicator = `📌Источник:${channelUsername}`;
                 let appendTo = '';
                 if (channelPost.text) {
                   appendTo = 'text';
@@ -229,7 +229,7 @@ serve(async (req: Request) => {
                   appendTo = 'caption';
                 }
                 const originalContent = appendTo === 'text' ? channelPost.text : channelPost.caption || '';
-                const newContent = originalContent + (originalContent ? '\n' : '') + fromIndicator;
+                const newContent = originalContent + (originalContent ? '\n\n' : '') + fromIndicator;
                 let originalEntities = [];
                 if (appendTo === 'text') {
                   originalEntities = channelPost.entities || [];
