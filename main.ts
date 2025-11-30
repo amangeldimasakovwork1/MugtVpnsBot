@@ -218,6 +218,23 @@ serve(async (req: Request) => {
             for (const targetChannel of vipChannels) {
               const copyRes = await copyMessage(targetChannel, channelPost.chat.id, channelPost.message_id);
               if (copyRes.ok) {
+                const newMessageId = copyRes.result.message_id;
+                const fromIndicator = `📌${channelUsername}`;
+                let appendTo = '';
+                if (channelPost.text) {
+                  appendTo = 'text';
+                } else if (channelPost.caption) {
+                  appendTo = 'caption';
+                } else {
+                  appendTo = 'caption';
+                }
+                const originalContent = appendTo === 'text' ? channelPost.text : channelPost.caption || '';
+                const newContent = originalContent + (originalContent ? '\n' : '') + fromIndicator;
+                if (appendTo === 'text') {
+                  await editMessageText(targetChannel, newMessageId, newContent);
+                } else {
+                  await editMessageCaption(targetChannel, newMessageId, newContent);
+                }
                 const countKey = ["forward_count", targetChannel];
                 let count = (await kv.get(countKey)).value || 0;
                 count++;
