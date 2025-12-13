@@ -1,11 +1,8 @@
-//main.ts
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-
 const kv = await Deno.openKv();
 const TOKEN = Deno.env.get("BOT_TOKEN");
 const SECRET_PATH = "/mugtvpnsbot"; // change this if needed
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
-
 serve(async (req: Request) => {
   const { pathname } = new URL(req.url);
   if (pathname !== SECRET_PATH) {
@@ -267,6 +264,20 @@ serve(async (req: Request) => {
               await forwardMessage(ch, post.from_chat_id, post.message_id);
             }
           }
+        }
+      }
+      // New logic: Check for "happ://" in @MugtVpnshelperchannel to update success message and send global notification
+      if (channelUsername === "@MugtVpnshelperchannel" && postText.includes("happ://")) {
+        const fromChatId = channelPost.chat.id;
+        const msgId = channelPost.message_id;
+        await kv.set(["success_message"], { from_chat_id: fromChatId, message_id: msgId });
+        // Send global message
+        let sentCount = 0;
+        for await (const e of kv.list({ prefix: ["users"] })) {
+          try {
+            await sendMessage(e.key[1], "Kody täzeledik /start basyp alyp bilersiňiz!");
+            sentCount++;
+          } catch {}
         }
       }
     }
