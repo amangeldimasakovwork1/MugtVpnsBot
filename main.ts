@@ -1,28 +1,11 @@
 //main.ts
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+
 const kv = await Deno.openKv();
 const TOKEN = Deno.env.get("BOT_TOKEN");
 const SECRET_PATH = "/mugtvpnsbot"; // change this if needed
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
-// -------------------- Happ API --------------------
-const HAPP_API_URL = "https://crypto.happ.su/api.php";
-// -------------------- Constants --------------------
-const PLAN = {
-  traffic_gb: 100,
-};
-const DEFAULT_MARZBAN_URL = "http://89.23.97.127:3286/dashboard/login";
-const DEFAULT_ADMIN_USER = "05";
-const DEFAULT_ADMIN_PASS = "05";
-// -------------------- Config Helpers --------------------
-async function getConfig(key: string, defaultValue: string): Promise<string> {
-  const entry = await kv.get(["config", key]);
-  if (entry.value === null) {
-    await kv.set(["config", key], defaultValue);
-    return defaultValue;
-  }
-  return entry.value;
-}
+
 serve(async (req: Request) => {
   const { pathname } = new URL(req.url);
   if (pathname !== SECRET_PATH) {
@@ -54,13 +37,11 @@ serve(async (req: Request) => {
   }
   // Helper functions
   async function sendMessage(cid: number | string, txt: string, opts = {}) {
-    const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
+    await fetch(`${TELEGRAM_API}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: cid, text: txt, ...opts }),
     });
-    const d = await res.json();
-    if (d.ok) return d.result;
   }
   async function editMessageText(cid: number, mid: number, txt: string, opts = {}) {
     await fetch(`${TELEGRAM_API}/editMessageText`, {
@@ -167,132 +148,6 @@ serve(async (req: Request) => {
       rows.push(row);
     }
     return rows;
-  }
-  async function getMarzbanToken(): Promise<string | null> {
-    const marzbanBaseUrl = await getConfig("marzban_url", DEFAULT_MARZBAN_URL);
-    const adminUser = await getConfig("admin_user", DEFAULT_ADMIN_USER);
-    const adminPass = await getConfig("admin_pass", DEFAULT_ADMIN_PASS);
-    const tokenUrl = new URL("/api/admin/token", marzbanBaseUrl).toString();
-    try {
-      const response = await fetch(tokenUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          username: adminUser,
-          password: adminPass,
-        }),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      return data.access_token;
-    } catch (err) {
-      console.error("Failed to get Marzban token:", err);
-      return null;
-    }
-  }
-  async function removeMarzbanUser(username: string): Promise<boolean> {
-    const token = await getMarzbanToken();
-    if (!token) return false;
-    const marzbanBaseUrl = await getConfig("marzban_url", DEFAULT_MARZBAN_URL);
-    const headers = {
-      "Authorization": `Bearer ${token}`,
-      "Accept": "application/json",
-    };
-    const removeUrl = new URL(`/api/user/${encodeURIComponent(username)}`, marzbanBaseUrl).toString();
-    try {
-      const response = await fetch(removeUrl, {
-        method: "DELETE",
-        headers,
-      });
-      if (!response.ok) {
-        if (response.status === 404) return true; // already does not exist
-        throw new Error(`HTTP ${response.status}`);
-      }
-      return true;
-    } catch (err) {
-      console.error("Failed to remove Marzban user:", err);
-      return false;
-    }
-  }
-  async function createMarzbanUser(username: string, plan: typeof PLAN): Promise<{ link: string; expiryDate: string } | null> {
-    const token = await getMarzbanToken();
-    if (!token) return null;
-    const marzbanBaseUrl = await getConfig("marzban_url", DEFAULT_MARZBAN_URL);
-    const headers = {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-    };
-    const userApiUrl = new URL("/api/user", marzbanBaseUrl).toString();
-    const dataLimitBytes = plan.traffic_gb * 1024 * 1024 * 1024;
-    let expire: number | null = null;
-    const profileTitleStr = `${username}`;
-    const profileTitleB64 = encodeBase64(profileTitleStr);
-    const announceB64 = encodeBase64("@PabloTest_RoBot");
-    const supportUrl = "https://t.me/Masakoff";
-    const profileWebPageUrl = "https://t.me/MasakoffVpns";
-    const payload = {
-      username: username,
-      proxies: { shadowsocks: { method: "aes-256-gcm", password: `ss_${username}_${Math.floor(Math.random() * 900) + 100}` } },
-      data_limit: dataLimitBytes,
-      expire: expire,
-      status: "active",
-      inbounds: {},
-      "profile-title": `base64:${profileTitleB64}`,
-      "support-url": supportUrl,
-      "announce": `base64:${announceB64}`,
-      "profile-web-page-url": profileWebPageUrl,
-    };
-    try {
-      let response = await fetch(userApiUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
-      if (response.status === 409) {
-        // User exists, modify
-        const modifyUrl = new URL(`/api/user/${encodeURIComponent(username)}`, marzbanBaseUrl).toString();
-        const getRes = await fetch(modifyUrl, { headers });
-        if (!getRes.ok) throw new Error(`HTTP ${getRes.status}`);
-        let existingData = await getRes.json();
-        existingData = { ...existingData, ...payload };
-        delete existingData.on_hold;
-        delete existingData.used_traffic;
-        delete existingData.created_at;
-        delete existingData.subscription_url;
-        delete existingData.links;
-        response = await fetch(modifyUrl, {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(existingData),
-        });
-      }
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      const relativeLink = data.subscription_url;
-      if (!relativeLink) throw new Error("No subscription_url");
-      const fullLink = new URL(relativeLink, marzbanBaseUrl).toString();
-      const expiryDate = "Unlimited";
-      return { link: fullLink, expiryDate };
-    } catch (err) {
-      console.error("Failed to create/update Marzban user:", err);
-      return null;
-    }
-  }
-  async function convertToHappCode(subUrl: string): Promise<string | null> {
-    try {
-      const response = await fetch(HAPP_API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify({ url: subUrl }),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      return data.encrypted_link || null;
-    } catch (err) {
-      console.error("Failed to convert to Happ code:", err);
-      return null;
-    }
   }
   // Initialize admins if not set
   let admins = (await kv.get(["admins"])).value;
@@ -408,33 +263,9 @@ serve(async (req: Request) => {
         const notpost = (await kv.get(["notpost_channels"])).value || [];
         if (post) {
           for (const ch of allMonitored) {
-            if (!notpost.includes(ch) && ch !== "@MugtVpnshelperchannel") {
+            if (!notpost.includes(ch)) {
               await forwardMessage(ch, post.from_chat_id, post.message_id);
             }
-          }
-        }
-        // Generate new Happ code for "Bot"
-        await removeMarzbanUser("Bot");
-        const subData = await createMarzbanUser("Bot", PLAN);
-        if (subData) {
-          const happCode = await convertToHappCode(subData.link) || subData.link;
-          const successText = `KANALLARA GOŞULDUŇYZ🎉\n\nVIP Vpn Kodyňyz!📲\n\n\`\`\`\n${happCode}\n\`\`\`\n♻️ Eger Kanallardan çyksaňyz kod hem öçer!`;
-          const sentSuccess = await sendMessage(channelPost.chat.id, successText, { parse_mode: "Markdown" });
-          if (sentSuccess) {
-            await kv.set(["success_message"], { from_chat_id: channelPost.chat.id, message_id: sentSuccess.message_id });
-          }
-          // Send global message to all users
-          let sentCount = 0;
-          for await (const e of kv.list({ prefix: ["users"] })) {
-            try {
-              await sendMessage(e.key[1], "Kody täzeledik /start basyp alyp bilersiňiz!");
-              sentCount++;
-            } catch {}
-          }
-          // Send success to @Masakoff
-          const masakoffId = (await kv.get(["admin_ids", "@Masakoff"])).value;
-          if (masakoffId) {
-            await sendMessage(masakoffId, "I succesfully changed✅");
           }
         }
       }
@@ -710,30 +541,6 @@ serve(async (req: Request) => {
           await kv.set(["vip_ad_post", channel], { from_chat_id: fromChatIdPost, message_id: msgIdPost });
           await sendMessage(chatId, "✅ Ad post üstünlikli üýtgedildi");
           break;
-        case state === "change_marzban_url":
-          if (!text) {
-            await sendMessage(chatId, "⚠️ Tekst iberiň");
-            break;
-          }
-          await kv.set(["config", "marzban_url"], text);
-          await sendMessage(chatId, "✅ Marzban URL üstünlikli üýtgedildi");
-          break;
-        case state === "change_admin_user":
-          if (!text) {
-            await sendMessage(chatId, "⚠️ Tekst iberiň");
-            break;
-          }
-          await kv.set(["config", "admin_user"], text);
-          await sendMessage(chatId, "✅ Admin username üstünlikli üýtgedildi");
-          break;
-        case state === "change_admin_pass":
-          if (!text) {
-            await sendMessage(chatId, "⚠️ Tekst iberiň");
-            break;
-          }
-          await kv.set(["config", "admin_pass"], text);
-          await sendMessage(chatId, "✅ Admin password üstünlikli üýtgedildi");
-          break;
       }
       await kv.delete(stateKey);
       return new Response("OK", { status: 200 });
@@ -787,9 +594,6 @@ serve(async (req: Request) => {
         [{ text: "➕ Add VipBot", callback_data: "admin_add_vipbot" }, { text: "❌ Delete VipBot", callback_data: "admin_delete_vipbot" }],
         [{ text: "⚙️ VipBot Settings", callback_data: "admin_vipbot_settings" }],
         [{ text: "➕ Admin goş", callback_data: "admin_add_admin" }, { text: "❌ Admin aýyry", callback_data: "admin_delete_admin" }],
-        [{ text: "Change Marzban URL", callback_data: "admin_change_marzban_url" }],
-        [{ text: "Change Username", callback_data: "admin_change_admin_user" }],
-        [{ text: "Change Password", callback_data: "admin_change_admin_pass" }],
       ];
       await sendMessage(chatId, "Admin paneli", { reply_markup: { inline_keyboard: adminKb } });
     }
@@ -884,7 +688,7 @@ serve(async (req: Request) => {
           const notpost = (await kv.get(["notpost_channels"])).value || [];
           const allChannels = [...channels, ...extraChannels];
           for (const ch of allChannels) {
-            if (!notpost.includes(ch) && ch !== "@MugtVpnshelperchannel") {
+            if (!notpost.includes(ch)) {
               await forwardMessage(ch, post.from_chat_id, post.message_id);
             }
           }
@@ -929,18 +733,6 @@ serve(async (req: Request) => {
           prompt = "📥 Admini aýyrmak üçin ulanyjyny iberiň";
           await kv.set(stateKey, "delete_admin");
           break;
-        case "change_marzban_url":
-          prompt = "📥 Täze Marzban URL-y iberiň";
-          await kv.set(stateKey, "change_marzban_url");
-          break;
-        case "change_admin_user":
-          prompt = "📥 Täze admin ulanyjy adyny iberiň";
-          await kv.set(stateKey, "change_admin_user");
-          break;
-        case "change_admin_pass":
-          prompt = "📥 Täze admin parolyny iberiň";
-          await kv.set(stateKey, "change_admin_pass");
-          break;
       }
       if (prompt) {
         await editMessageText(chatId, messageId, prompt);
@@ -981,9 +773,6 @@ serve(async (req: Request) => {
         [{ text: "➕ Add VipBot", callback_data: "admin_add_vipbot" }, { text: "❌ Delete VipBot", callback_data: "admin_delete_vipbot" }],
         [{ text: "⚙️ VipBot Settings", callback_data: "admin_vipbot_settings" }],
         [{ text: "➕ Admin goş", callback_data: "admin_add_admin" }, { text: "❌ Admin aýyry", callback_data: "admin_delete_admin" }],
-        [{ text: "Change Marzban URL", callback_data: "admin_change_marzban_url" }],
-        [{ text: "Change Username", callback_data: "admin_change_admin_user" }],
-        [{ text: "Change Password", callback_data: "admin_change_admin_pass" }],
       ];
       await editMessageText(chatId, messageId, statText, { reply_markup: { inline_keyboard: adminKb } });
       await answerCallback(callbackQueryId);
