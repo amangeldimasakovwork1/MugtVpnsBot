@@ -560,17 +560,17 @@ serve(async (req: Request) => {
         }
       } else {
         const chTitles = await Promise.all(channels.map(getChannelTitle));
-        const subText = "⚠️ VPN kod almak üçin Bu kanallara agza boluň.";
+        const subText = "⚠️ Чтобы получить Впн ключ, подпишитесь на эти каналы.";            //⚠️ VPN kod almak üçin Bu kanallara agza boluň.
         const mainRows = buildJoinRows(channels, chTitles);
         const adRows = [[{ text: "📂MugtVpns", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
-        const keyboard = [...mainRows, ...adRows, [{ text: "Abuna barla ✅", callback_data: "check_sub" }]];
+        const keyboard = [...mainRows, ...adRows, [{ text: "Проверить ✅", callback_data: "check_sub" }]];     //Abuna barla ✅
         await sendMessage(chatId, subText, { reply_markup: { inline_keyboard: keyboard } });
       }
     }
     // Handle /admin
     if (text === "/admin") {
       if (!username || !admins.includes(username)) {
-        await sendMessage(chatId, "⚠️ Siziň admin bolmagyňyz ýok");
+        await sendMessage(chatId, "⚠️ Вы не админ");      //⚠️ Siziň admin bolmagyňyz ýok
         return new Response("OK", { status: 200 });
       }
       // Store admin id
@@ -620,7 +620,7 @@ serve(async (req: Request) => {
         await answerCallback(callbackQueryId);
       } else {
         const chTitles = await Promise.all(unsubChs.map(getChannelTitle));
-        const textToSend = "⚠️ Siz henizem bu kanallara agza bolmadyňyz!";
+        const textToSend = "⚠️ Вы ещё не подписались на эти каналы!";         //⚠️ Siz henizem bu kanallara agza bolmadyňyz!
         const mainRows = buildJoinRows(unsubChs, chTitles);
         const adRows = [[{ text: "📂MugtVpns", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
         const keyboard = [...mainRows, ...adRows, [{ text: "Abuna barla ✅", callback_data: "check_sub" }]];
