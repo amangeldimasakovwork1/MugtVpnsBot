@@ -623,7 +623,7 @@ serve(async (req: Request) => {
         const textToSend = "⚠️ Вы ещё не подписались на эти каналы!";         //⚠️ Siz henizem bu kanallara agza bolmadyňyz!
         const mainRows = buildJoinRows(unsubChs, chTitles);
         const adRows = [[{ text: "📂MugtVpns", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
-        const keyboard = [...mainRows, ...adRows, [{ text: "Abuna barla ✅", callback_data: "check_sub" }]];
+        const keyboard = [...mainRows, ...adRows, [{ text: "Проверить ✅", callback_data: "check_sub" }]];   //Abuna barla ✅
         await editMessageText(chatId, messageId, textToSend, { reply_markup: { inline_keyboard: keyboard } });
         await answerCallback(callbackQueryId);
       }
