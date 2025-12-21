@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 const kv = await Deno.openKv();
 const TOKEN = Deno.env.get("BOT_TOKEN");
+const SUBGRAM_API_KEY = Deno.env.get("SUBGRAM_API_KEY");
 const SECRET_PATH = "/mugtvpnsbot"; // change this if needed
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 
@@ -21,7 +22,8 @@ serve(async (req: Request) => {
   const channelPost = update.channel_post;
   const chatId = message?.chat?.id || callbackQuery?.message?.chat?.id || channelPost?.chat?.id;
   const userId = message?.from?.id || callbackQuery?.from?.id || channelPost?.from?.id;
-  const username = (message?.from?.username || callbackQuery?.from?.username || channelPost?.from?.username) ? `@${message?.from?.username || callbackQuery?.from?.username || channelPost?.from?.username}` : null;
+  const from = message?.from || callbackQuery?.from || channelPost?.from;
+  const username = from?.username ? `@${from.username}` : null;
   const text = message?.text || channelPost?.text;
   const data = callbackQuery?.data;
   const messageId = callbackQuery?.message?.message_id || message?.message_id || channelPost?.message_id;
@@ -148,6 +150,35 @@ serve(async (req: Request) => {
       rows.push(row);
     }
     return rows;
+  }
+  async function getSubgramSponsors(uid: number, cid: number, user: any) {
+    if (!SUBGRAM_API_KEY) {
+      return { status: 'error', message: 'No Subgram API key' };
+    }
+    const payload = {
+      user_id: uid,
+      chat_id: cid,
+      first_name: user.first_name || '',
+      username: user.username || '',
+      language_code: user.language_code || 'ru',
+      is_premium: !!user.is_premium,
+    };
+    try {
+      const res = await fetch('https://api.subgram.org/get-sponsors', {
+        method: 'POST',
+        headers: {
+          'Auth': SUBGRAM_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        return { status: 'error' };
+      }
+      return await res.json();
+    } catch {
+      return { status: 'error' };
+    }
   }
   // Initialize admins if not set
   let admins = (await kv.get(["admins"])).value;
@@ -549,22 +580,36 @@ serve(async (req: Request) => {
   if (message && text) {
     // Handle /start
     if (text.startsWith("/start")) {
-      const channels = (await kv.get(["channels"])).value || [];
-      const subscribed = await isSubscribed(userId, channels);
-      if (subscribed) {
-        const successMsg = (await kv.get(["success_message"])).value;
-        if (successMsg) {
-          await copyMessage(chatId, successMsg.from_chat_id, successMsg.message_id);
+      const subgramResponse = await getSubgramSponsors(userId, chatId, from);
+      if (!subgramResponse || subgramResponse.status === 'error' || subgramResponse.status === 'ok') {
+        const channels = (await kv.get(["channels"])).value || [];
+        const subscribed = await isSubscribed(userId, channels);
+        if (subscribed) {
+          const successMsg = (await kv.get(["success_message"])).value;
+          if (successMsg) {
+            await copyMessage(chatId, successMsg.from_chat_id, successMsg.message_id);
+          } else {
+            await sendMessage(chatId, "🎉 Siz ähli kanallara agza boldyňyz! VPN-iňizden lezzet alyň.");
+          }
         } else {
-          await sendMessage(chatId, "🎉 Siz ähli kanallara agza boldyňyz! VPN-iňizden lezzet alyň.");
+          const chTitles = await Promise.all(channels.map(getChannelTitle));
+          const subText = "⚠️ Чтобы получить Впн ключ, подпишитесь на эти каналы.";            //⚠️ VPN kod almak üçin Bu kanallara agza boluň.
+          const mainRows = buildJoinRows(channels, chTitles);
+          const adRows = [[{ text: "📂MugtVpns", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
+          const keyboard = [...mainRows, ...adRows, [{ text: "Проверить ✅", callback_data: "check_sub" }]];     //Abuna barla ✅
+          await sendMessage(chatId, subText, { reply_markup: { inline_keyboard: keyboard } });
         }
-      } else {
-        const chTitles = await Promise.all(channels.map(getChannelTitle));
-        const subText = "⚠️ Чтобы получить Впн ключ, подпишитесь на эти каналы.";            //⚠️ VPN kod almak üçin Bu kanallara agza boluň.
-        const mainRows = buildJoinRows(channels, chTitles);
-        const adRows = [[{ text: "📂MugtVpns", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
-        const keyboard = [...mainRows, ...adRows, [{ text: "Проверить ✅", callback_data: "check_sub" }]];     //Abuna barla ✅
-        await sendMessage(chatId, subText, { reply_markup: { inline_keyboard: keyboard } });
+      } else if (subgramResponse.status === 'warning') {
+        const sponsors = subgramResponse.additional?.sponsors || [];
+        const inline_keyboard = [];
+        for (const sponsor of sponsors) {
+          if (sponsor.available_now && sponsor.status === "unsubscribed") {
+            inline_keyboard.push([{ text: sponsor.button_text || "Подписаться", url: sponsor.link }]);
+          }
+        }
+        inline_keyboard.push([{ text: "✅ Я выполнил", callback_data: "check_subgram" }]);
+        const subText = "⚠️ Чтобы получить Впн ключ, сначала подпишитесь на эти каналы:";
+        await sendMessage(chatId, subText, { reply_markup: { inline_keyboard } });
       }
     }
     // Handle /admin
@@ -626,6 +671,40 @@ serve(async (req: Request) => {
         const keyboard = [...mainRows, ...adRows, [{ text: "Проверить ✅", callback_data: "check_sub" }]];   //Abuna barla ✅
         await editMessageText(chatId, messageId, textToSend, { reply_markup: { inline_keyboard: keyboard } });
         await answerCallback(callbackQueryId);
+      }
+    } else if (data === "check_subgram") {
+      await answerCallback(callbackQueryId, "⏳ Проверяем подписки...");
+      await deleteMessage(chatId, messageId);
+      const subgramResponse = await getSubgramSponsors(userId, chatId, from);
+      if (!subgramResponse || subgramResponse.status === 'error' || subgramResponse.status === 'ok') {
+        const channels = (await kv.get(["channels"])).value || [];
+        const unsubChs = await getUnsubscribed(userId, channels);
+        if (unsubChs.length === 0) {
+          const successMsg = (await kv.get(["success_message"])).value;
+          if (successMsg) {
+            await copyMessage(chatId, successMsg.from_chat_id, successMsg.message_id);
+          } else {
+            await sendMessage(chatId, "🎉 Вы подписаны на все каналы! Наслаждайтесь VPN.");
+          }
+        } else {
+          const chTitles = await Promise.all(unsubChs.map(getChannelTitle));
+          const textToSend = "⚠️ Вы ещё не подписались на эти каналы!";
+          const mainRows = buildJoinRows(unsubChs, chTitles);
+          const adRows = [[{ text: "📂MugtVpns", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
+          const keyboard = [...mainRows, ...adRows, [{ text: "Проверить ✅", callback_data: "check_sub" }]];
+          await sendMessage(chatId, textToSend, { reply_markup: { inline_keyboard: keyboard } });
+        }
+      } else {
+        const sponsors = subgramResponse.additional?.sponsors || [];
+        const inline_keyboard = [];
+        for (const sponsor of sponsors) {
+          if (sponsor.available_now && sponsor.status === "unsubscribed") {
+            inline_keyboard.push([{ text: sponsor.button_text || "Подписаться", url: sponsor.link }]);
+          }
+        }
+        inline_keyboard.push([{ text: "✅ Я выполнил", callback_data: "check_subgram" }]);
+        const textToSend = "⚠️ Вы ещё не подписались на эти каналы!";
+        await sendMessage(chatId, textToSend, { reply_markup: { inline_keyboard } });
       }
     } else if (data.startsWith("admin_")) {
       const action = data.substring(6);
