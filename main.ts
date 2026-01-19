@@ -1,12 +1,10 @@
 //main.ts
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-
 const kv = await Deno.openKv();
 const TOKEN = Deno.env.get("BOT_TOKEN");
 const SUBGRAM_API_KEY = Deno.env.get("SUBGRAM_API_KEY");
 const SECRET_PATH = "/mugtvpnsbot"; // change this if needed
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
-
 serve(async (req: Request) => {
   const { pathname } = new URL(req.url);
   if (pathname !== SECRET_PATH) {
@@ -465,21 +463,16 @@ serve(async (req: Request) => {
           await kv.set(["broadcast_post"], { from_chat_id: chatId, message_id: message.message_id });
           await sendMessage(chatId, "✅ Post üstünlikli üýtgedildi");
           break;
-        case state === "global_message":
+        case state === "change_global":
           let globalFromChatId = chatId;
           let globalMsgId = message.message_id;
           if (message.forward_origin && message.forward_origin.type === "channel") {
             globalFromChatId = message.forward_origin.chat.id;
             globalMsgId = message.forward_origin.message_id;
           }
-          let sentCount = 0;
-          for await (const e of kv.list({ prefix: ["users"] })) {
-            try {
-              await copyMessage(e.key[1], globalFromChatId, globalMsgId);
-              sentCount++;
-            } catch {}
-          }
-          await sendMessage(chatId, `✅ Habar ${sentCount} ulanyjylara iberildi`);
+          await kv.set(["global_post"], { from_chat_id: globalFromChatId, message_id: globalMsgId });
+          await kv.set(["global_sent"], false);
+          await sendMessage(chatId, "✅ Global habar üstünlikli üýtgedildi");
           break;
         case state === "add_admin":
           if (!text) {
@@ -593,10 +586,10 @@ serve(async (req: Request) => {
           }
         } else {
           const chTitles = await Promise.all(channels.map(getChannelTitle));
-          const subText = "⚠️ Чтобы получить Впн ключ, подпишитесь на эти каналы.";            //⚠️ VPN kod almak üçin Bu kanallara agza boluň.
+          const subText = "⚠️ Чтобы получить Впн ключ, подпишитесь на эти каналы."; //⚠️ VPN kod almak üçin Bu kanallara agza boluň.
           const mainRows = buildJoinRows(channels, chTitles);
           const adRows = [[{ text: "📂MugtVpns", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
-          const keyboard = [...mainRows, ...adRows, [{ text: "Проверить ✅", callback_data: "check_sub" }]];     //Abuna barla ✅
+          const keyboard = [...mainRows, ...adRows, [{ text: "Проверить ✅", callback_data: "check_sub" }]]; //Abuna barla ✅
           await sendMessage(chatId, subText, { reply_markup: { inline_keyboard: keyboard } });
         }
       } else if (subgramResponse.status === 'warning') {
@@ -615,7 +608,7 @@ serve(async (req: Request) => {
     // Handle /admin
     if (text === "/admin") {
       if (!username || !admins.includes(username)) {
-        await sendMessage(chatId, "⚠️ Вы не админ");      //⚠️ Siziň admin bolmagyňyz ýok
+        await sendMessage(chatId, "⚠️ Вы не админ"); //⚠️ Siziň admin bolmagyňyz ýok
         return new Response("OK", { status: 200 });
       }
       // Store admin id
@@ -634,7 +627,7 @@ serve(async (req: Request) => {
         [{ text: "➕ Add notpost", callback_data: "admin_add_notpost" }, { text: "❌ Delete notpost", callback_data: "admin_delete_notpost" }],
         [{ text: "🔄 Kanallaryň ýerini üýtget", callback_data: "admin_change_place" }],
         [{ text: "✏️ Üstünlik tekstini üýtget", callback_data: "admin_change_text" }],
-        [{ text: "🌍 Global habar", callback_data: "admin_global_message" }],
+        [{ text: "✏️ Global habary üýtget", callback_data: "admin_change_global" }, { text: "📤 Global iber", callback_data: "admin_send_global" }],
         [{ text: "✏️ Ýaýratmak postyny üýtget", callback_data: "admin_change_post" }, { text: "📤 Post iber", callback_data: "admin_send_post" }],
         [{ text: "➕ Add VipBot", callback_data: "admin_add_vipbot" }, { text: "❌ Delete VipBot", callback_data: "admin_delete_vipbot" }],
         [{ text: "⚙️ VipBot Settings", callback_data: "admin_vipbot_settings" }],
@@ -665,10 +658,10 @@ serve(async (req: Request) => {
         await answerCallback(callbackQueryId);
       } else {
         const chTitles = await Promise.all(unsubChs.map(getChannelTitle));
-        const textToSend = "⚠️ Вы ещё не подписались на эти каналы!";         //⚠️ Siz henizem bu kanallara agza bolmadyňyz!
+        const textToSend = "⚠️ Вы ещё не подписались на эти каналы!"; //⚠️ Siz henizem bu kanallara agza bolmadyňyz!
         const mainRows = buildJoinRows(unsubChs, chTitles);
         const adRows = [[{ text: "📂MugtVpns", url: "https://t.me/addlist/5wQ1fNW2xIdjZmIy" }]];
-        const keyboard = [...mainRows, ...adRows, [{ text: "Проверить ✅", callback_data: "check_sub" }]];   //Abuna barla ✅
+        const keyboard = [...mainRows, ...adRows, [{ text: "Проверить ✅", callback_data: "check_sub" }]]; //Abuna barla ✅
         await editMessageText(chatId, messageId, textToSend, { reply_markup: { inline_keyboard: keyboard } });
         await answerCallback(callbackQueryId);
       }
@@ -748,9 +741,30 @@ serve(async (req: Request) => {
           prompt = "📥 Täze üstünlik habaryny iberiň ýa-da forward ediň (kanaldan, sender adyny gizlemek üçin; tekst, surat, wideo we ş.m.)";
           await kv.set(stateKey, "change_text");
           break;
-        case "global_message":
+        case "change_global":
           prompt = "📥 Ähli ulanyjylara iberiljek habary iberiň ýa-da forward ediň (kanaldan, sender adyny gizlemek üçin; tekst, surat, wideo we ş.m.)";
-          await kv.set(stateKey, "global_message");
+          await kv.set(stateKey, "change_global");
+          break;
+        case "send_global":
+          const globalPost = (await kv.get(["global_post"])).value;
+          if (!globalPost) {
+            await answerCallback(callbackQueryId, "Global habar ýok");
+            break;
+          }
+          const sent = (await kv.get(["global_sent"])).value;
+          if (sent) {
+            await answerCallback(callbackQueryId, "Global habar eýýäm iberildi");
+            break;
+          }
+          let sentCount = 0;
+          for await (const e of kv.list({ prefix: ["users"] })) {
+            try {
+              await copyMessage(e.key[1], globalPost.from_chat_id, globalPost.message_id);
+              sentCount++;
+            } catch {}
+          }
+          await kv.set(["global_sent"], true);
+          await answerCallback(callbackQueryId, `✅ Habar ${sentCount} ulanyjylara iberildi`);
           break;
         case "change_post":
           prompt = "📥 Täze ýaýratmak postyny iberiň (tekst, surat, wideo we ş.m.)";
@@ -847,7 +861,7 @@ serve(async (req: Request) => {
         [{ text: "➕ Add notpost", callback_data: "admin_add_notpost" }, { text: "❌ Delete notpost", callback_data: "admin_delete_notpost" }],
         [{ text: "🔄 Kanallaryň ýerini üýtget", callback_data: "admin_change_place" }],
         [{ text: "✏️ Üstünlik tekstini üýtget", callback_data: "admin_change_text" }],
-        [{ text: "🌍 Global habar", callback_data: "admin_global_message" }],
+        [{ text: "✏️ Global habary üýtget", callback_data: "admin_change_global" }, { text: "📤 Global iber", callback_data: "admin_send_global" }],
         [{ text: "✏️ Ýaýratmak postyny üýtget", callback_data: "admin_change_post" }, { text: "📤 Post iber", callback_data: "admin_send_post" }],
         [{ text: "➕ Add VipBot", callback_data: "admin_add_vipbot" }, { text: "❌ Delete VipBot", callback_data: "admin_delete_vipbot" }],
         [{ text: "⚙️ VipBot Settings", callback_data: "admin_vipbot_settings" }],
