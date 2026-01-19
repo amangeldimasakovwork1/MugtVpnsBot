@@ -751,8 +751,15 @@ serve(async (req: Request) => {
             await answerCallback(callbackQueryId, "Global habar ýok");
             break;
           }
-          const sent = (await kv.get(["global_sent"])).value;
-          if (sent) {
+          const sentRes = await kv.get(["global_sent"]);
+          if (sentRes.value === true) {
+            await answerCallback(callbackQueryId, "Global habar eýýäm iberildi");
+            break;
+          }
+          const current = sentRes;
+          const atomic = kv.atomic().check(current).set(["global_sent"], true);
+          const commitRes = await atomic.commit();
+          if (!commitRes.ok) {
             await answerCallback(callbackQueryId, "Global habar eýýäm iberildi");
             break;
           }
@@ -763,7 +770,6 @@ serve(async (req: Request) => {
               sentCount++;
             } catch {}
           }
-          await kv.set(["global_sent"], true);
           await answerCallback(callbackQueryId, `✅ Habar ${sentCount} ulanyjylara iberildi`);
           break;
         case "change_post":
