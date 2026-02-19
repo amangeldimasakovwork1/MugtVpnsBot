@@ -1,4 +1,4 @@
-//main.ts MugtVpnsBot
+//main.ts
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 const kv = await Deno.openKv();
 const TOKEN = Deno.env.get("BOT_TOKEN");
@@ -879,5 +879,6 @@ serve(async (req: Request) => {
   }
   return new Response("OK", { status: 200 });
 });
+
 
 
